@@ -1,140 +1,239 @@
 // app/dashboard/page.tsx
 "use client";
 
-import { useState, FC, useRef, useEffect } from 'react';
-import { RadarChart } from '../components/RadarCharts'; // Ajuste o caminho se necessário
-import { StatCard } from '../components/StatCard';
-import { DoughnutChart } from '../components/DoughnutChart';
-import { FileText, BarChart2, CheckSquare, MessageSquare } from 'lucide-react'; // Ícones para os cards
+import { FC, useEffect, useRef, useState } from 'react';
+import { Chart as ChartJS } from 'chart.js';
 import { useDashboardStore } from '../../store/DashboardStore';
 import { useRouter } from 'next/navigation';
-// Bibliotecas para o PDF
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+
+// Componentes de visualização de dados
+import { RadarChart } from '../components/RadarCharts'; // Gráfico de Radar para o Perfil Natural
+import { ComparisonBarChart } from '../components/ComparisonBarChart'; // NOVO GRÁFICO
+import { StatCard } from '../components/StatCard';
+import { InsightCard } from '../components/InsightCard'; // NOVO COMPONENTE DE CARD
+
+// Ícones
+import { FileText, BarChart2, TrendingUp, Users, BrainCircuit, BookOpen } from 'lucide-react';
+
+// Lógica de PDF (NOVA ABORDAGEM)
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import { PdfDocument } from '../components/PdfComponent'; // NOSSO NOVO DOCUMENTO PDF
+import { position } from 'html2canvas/dist/types/css/property-descriptors/position';
+
+interface DiscScores {
+	d: number;
+	i: number;
+	s: number;
+	c: number;
+}
 
 interface DashboardData {
-  relatorioTextual: { 
-	resumoPerfil: string;
-	nomePerfil: string;
-	pontosFortes: { ponto: string; descricao: string; }[];
-	pontosDesenvolvimento: { ponto: string; descricao: string; }[];
-	planoDeAcao: {
-		livro: { titulo: string; justificativa: string; };
-		comportamentos: { desafio: string; sugestao: string; }[];
-	};
-	mensagemFinal: string;
-   };
-  dadosQuantitativos: {
-    scores: { d: number; i: number; s: number; c: number; };
-    palavrasChave: string[];
-    pontosChave: { competencia: string; pontuacao: number; }[];
+  introducao: string;
+  analisePerfilNatural: {
+    scores: DiscScores;
+    fatorAltoPrincipal: string;
+    fatorBaixoPrincipal: string;
+    tituloPerfil: string;
+    descricaoPerfil: string;
+    exposicaoCaracteristicas: Array<{
+      titulo: string;
+      texto: string;
+    }>;
+    pontosFortes: {
+      emocoes: string[];
+      relacionamentos: string[];
+      atividades: string[];
+    };
+    pontosMelhorar: {
+      emocoes: string[];
+      relacionamentos: string[];
+      atividades: string[];
+    };
+    analiseFormaGrafico: {
+      tipo: string;
+      descricao: string;
+    };
   };
+  analisePerfilAdaptado: {
+    scores: DiscScores;
+    exigenciasDoMeio: string[];
+  };
+  estiloDeLideranca: {
+    titulo: string;
+    pontosFortes: string[];
+    comportamentosTrabalhar: string[];
+  };
+  conclusao: string;
 }
 
 const DashboardPage: FC = () => {
-  const [loading, setLoading] = useState(false);
   const dashboardData = useDashboardStore((state) => state.dashboardData);
-
   const router = useRouter();
 
-    useEffect(() => {
+  const radarChartRef = useRef<ChartJS<'radar'>>(null);
+  const barChartRef = useRef<ChartJS<'bar'>>(null);
+
+  const [radarChartImage, setRadarChartImage] = useState<string>('');
+  const [barChartImage, setBarChartImage] = useState<string>('');
+
+  // Redireciona para a home se não houver dados no store
+  useEffect(() => {
     if (!dashboardData) {
-      router.replace('/'); // Use .replace() para não adicionar ao histórico do navegador
+      router.replace('/');
     }
+
+    const timer = setTimeout(() => {
+      // Processa o Gráfico de Radar
+      if (radarChartRef.current) {
+        const chart = radarChartRef.current;
+        
+        // 1. FORÇA um tamanho fixo para a captura
+        chart.resize(1000, 800); 
+        
+        // 2. Captura a imagem no formato JPEG
+        const image = chart.toBase64Image('image/jpeg', 0.9);
+        setRadarChartImage(image);
+        
+        // 3. IMPORTANTE: Devolve o gráfico ao seu tamanho responsivo original
+        chart.resize(); 
+      }
+
+      // Processa o Gráfico de Barras
+      if (barChartRef.current) {
+        const chart = barChartRef.current;
+        
+        // Repete o mesmo processo
+        chart.resize(1000, 800);
+        const image = chart.toBase64Image('image/jpeg', 0.9);
+        setBarChartImage(image);
+        chart.resize();
+      }
+    }, 500);
+
+
+    return () => clearTimeout(timer);
   }, [dashboardData, router]);
-  
-  // Ref para o elemento do dashboard que queremos "printar"
-  const dashboardRef = useRef<HTMLDivElement>(null);
 
+  // Se os dados ainda não carregaram (ou após o redirecionamento), não renderiza nada
+  if (!dashboardData) {
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-slate-100">
+            <p className="text-gray-500">Carregando dados ou redirecionando...</p>
+        </div>
+    );
+  }
 
-  
-  const handleDownloadPdf = async () => {
-    const dashboardElement = dashboardRef.current;
-    if (!dashboardElement) return;
-    
-    // Usa html2canvas para capturar o elemento
-    const canvas = await html2canvas(dashboardElement, {
-        scale: 2, // Aumenta a resolução da imagem
-        useCORS: true,
-        backgroundColor: '#f1f5f9' // Cor de fundo do canvas
-    });
-    
-    const imgData = canvas.toDataURL('image/png');
-    
-    // Usa jsPDF para criar o PDF
-    // Dimensões do PDF (A4: 210x297 mm)
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-    
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-    const ratio = canvasWidth / canvasHeight;
-    const imgWidth = pdfWidth - 20; // com margem de 10mm de cada lado
-    const imgHeight = imgWidth / ratio;
-    
-    let heightLeft = imgHeight;
-    let position = 10; // margem superior
-    
-    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-    heightLeft -= (pdfHeight - 20);
-
-    // Lógica para PDFs com múltiplas páginas (se o dashboard for muito grande)
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-      heightLeft -= (pdfHeight - 20);
-    }
-
-    pdf.save('relatorio-dashboard.pdf');
-  };
+  // Extraindo dados para facilitar o acesso
+  const { analisePerfilNatural, analisePerfilAdaptado, estiloDeLideranca, introducao, conclusao } = dashboardData;
 
   return (
-    <div className="bg-slate-100 min-h-screen p-4 sm:p-6 lg:p-8">
-      {/* Cabeçalho */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-        <button
-          onClick={dashboardData ? handleDownloadPdf : undefined}
-          disabled={loading}
-          className="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition-colors disabled:bg-slate-400"
-        >
-          {loading ? 'Gerando...' : (dashboardData ? 'Baixar Relatório PDF' : 'Gerar Relatório')}
-        </button>
-      </div>
-
-      {/* Conteúdo do Dashboard que será capturado */}
-      {dashboardData ? (
-        <div ref={dashboardRef} className="p-4 bg-slate-100">
-          {/* Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <StatCard title="Perfil Principal" value={dashboardData.relatorioTextual.nomePerfil} icon={<FileText />} colorClass="bg-blue-100 text-blue-800" />
-            <StatCard title="Fator Dominante" value="Dominância (D)" icon={<BarChart2 />} colorClass="bg-red-100 text-red-800" />
-            <StatCard title="Competências" value={`${dashboardData.dadosQuantitativos.pontosChave.length} Mapeadas`} icon={<CheckSquare />} colorClass="bg-green-100 text-green-800" />
-            <StatCard title="Estilo de Comunicação" value="Direto e Objetivo" icon={<MessageSquare />} colorClass="bg-yellow-100 text-yellow-800" />
-          </div>
-
-          {/* Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-md">
-              <RadarChart scores={dashboardData.dadosQuantitativos.scores} />
-            </div>
-            <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
-              <DoughnutChart scores={dashboardData.dadosQuantitativos.scores} />
-            </div>
-          </div>
+    <main className="bg-slate-100 min-h-screen p-4 sm:p-6 lg:p-8">
+      {/* Cabeçalho com o botão de Download */}
+      <header className="flex flex-wrap justify-between items-center mb-6 gap-4">
+        <div>
+            <h1 className="text-3xl font-bold text-gray-800">Análise Comportamental</h1>
+            <p className="text-slate-600 mt-1">{introducao}</p>
         </div>
-      ) : (
-         <div className="text-center py-20 bg-white rounded-lg shadow-md">
-            <p className="text-gray-500">Clique em "Gerar Relatório" para visualizar o dashboard.</p>
-         </div>
-      )}
-    </div>
+        
+        {/* BOTÃO DE DOWNLOAD COM A NOVA LÓGICA */}
+        <PDFDownloadLink
+          document={
+            <PdfDocument 
+              data={dashboardData} 
+              radarChartImage={radarChartImage}
+              barChartImage={barChartImage}
+            />
+          }
+          fileName="relatorio-comportamental-disc.pdf"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 shadow-lg"
+        >
+          {({ loading }) => (loading ? 'Gerando PDF...' : 'Baixar Relatório PDF')}
+        </PDFDownloadLink>
+      </header>
+
+      {/* Conteúdo do Dashboard */}
+      <div className="space-y-8">
+        {/* Seção de Análise do Perfil Natural */}
+        <section className="bg-white p-6 rounded-2xl shadow-lg">
+          <h2 className="text-2xl font-bold text-indigo-800 mb-4">Perfil Natural: Sua Essência</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Gráfico de Radar e Insights */}
+            <div className="space-y-6">
+                <div className="h-150 ms-10 mx-auto">
+                   <RadarChart ref={radarChartRef} scores={analisePerfilNatural.scores} style={{ position: 'relative', zIndex: 10, height: 450, width: 700 }} />
+                </div>
+                <InsightCard 
+                    title="Análise do Gráfico" 
+                    insight={analisePerfilNatural.analiseFormaGrafico.tipo}
+                    description={analisePerfilNatural.analiseFormaGrafico.descricao}
+                    icon={<BrainCircuit />}
+                />
+            </div>
+            {/* Cards de Pontos Fortes e a Melhorar */}
+            <div className="space-y-4">
+                <StatCard title="Perfil Principal" value={analisePerfilNatural.tituloPerfil} icon={<FileText />} />
+                <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Pontos Fortes</h3>
+                    <ul className="list-disc list-inside text-slate-600 space-y-1">
+                        {analisePerfilNatural.pontosFortes.atividades.map((p:string) => <li key={p}>{p}</li>)}
+                        {analisePerfilNatural.pontosFortes.relacionamentos.map((p:string) => <li key={p}>{p}</li>)}
+                    </ul>
+                </div>
+                <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Pontos a Melhorar</h3>
+                     <ul className="list-disc list-inside text-slate-600 space-y-1">
+                        {analisePerfilNatural.pontosMelhorar.atividades.map((p:string) => <li key={p}>{p}</li>)}
+                        {analisePerfilNatural.pontosMelhorar.relacionamentos.map((p:string) => <li key={p}>{p}</li>)}
+                    </ul>
+                </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Seção Comparativa e Liderança */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Comparativo Natural vs. Adaptado */}
+            <div className="bg-white p-6 rounded-2xl shadow-lg">
+                <h2 className="text-2xl font-bold text-teal-800 mb-4">Perfil Adaptado: Ajustes ao Meio</h2>
+                <div className="w-full h-80">
+                  <ComparisonBarChart 
+                    ref={barChartRef}
+                    naturalScores={analisePerfilNatural.scores} 
+                    adaptadoScores={analisePerfilAdaptado.scores} 
+                  />
+                </div>
+                 <div className="mt-4">
+                    <h3 className="font-semibold text-slate-700 mb-2">Exigências do Meio:</h3>
+                     <ul className="list-disc list-inside text-slate-600 space-y-1">
+                        {analisePerfilAdaptado.exigenciasDoMeio.map((e: string) => <li key={e}>{e}</li>)}
+                    </ul>
+                </div>
+            </div>
+            {/* Estilo de Liderança */}
+            <div className="bg-white p-6 rounded-2xl shadow-lg space-y-4">
+                <h2 className="text-2xl font-bold text-slate-800">Estilo de Liderança</h2>
+                <StatCard title="Estilo Predominante" value={estiloDeLideranca.titulo} icon={<Users />} />
+                <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Pontos Fortes na Liderança:</h3>
+                     <ul className="list-disc list-inside text-slate-600 space-y-1">
+                        {estiloDeLideranca.pontosFortes.map((p: string) => <li key={p}>{p}</li>)}
+                    </ul>
+                </div>
+                 <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Comportamentos a Trabalhar:</h3>
+                     <ul className="list-disc list-inside text-slate-600 space-y-1">
+                        {estiloDeLideranca.comportamentosTrabalhar.map((p: string) => <li key={p}>{p}</li>)}
+                    </ul>
+                </div>
+            </div>
+        </section>
+        
+        {/* Conclusão */}
+        <footer className="text-center py-6">
+            <p className="text-slate-700 max-w-3xl mx-auto">{conclusao}</p>
+        </footer>
+      </div>
+    </main>
   );
 };
 

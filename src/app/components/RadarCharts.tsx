@@ -1,7 +1,7 @@
 // app/components/RadarChart.tsx
 
 "use client";
-
+import { forwardRef, ComponentRef, CSSProperties } from 'react';
 import { Radar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -23,15 +23,11 @@ ChartJS.register(
 );
 
 interface RadarChartProps {
-  scores: {
-    d: number;
-    i: number;
-    s: number;
-    c: number;
-  };
+  scores: { d: number; i: number; s: number; c: number; };
+  style?: CSSProperties; // Adicione esta linha para permitir a propriedade style
 }
 
-export const RadarChart = ({ scores }: RadarChartProps) => {
+export const RadarChart = forwardRef<ComponentRef<typeof Radar>, RadarChartProps>(({ scores, style }, ref) => {
   const data = {
     labels: ['Dominância (D)', 'Influência (I)', 'Estabilidade (S)', 'Conformidade (C)'],
     datasets: [
@@ -56,7 +52,7 @@ export const RadarChart = ({ scores }: RadarChartProps) => {
           display: true,
         },
         suggestedMin: 0,
-        suggestedMax: 100,
+        suggestedMax: 80,
         ticks: {
             backdropColor: 'transparent',
             stepSize: 20
@@ -76,5 +72,5 @@ export const RadarChart = ({ scores }: RadarChartProps) => {
     }
   };
 
-  return <Radar data={data} options={options} />;
-};
+  return <Radar data={data} options={options} ref={ref} style={style} />;
+});
