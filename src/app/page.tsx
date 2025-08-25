@@ -6,52 +6,9 @@ import { Dialog, Transition } from '@headlessui/react';
 import { RadarChart } from './components/RadarCharts';
 import { useDashboardStore } from '../store/DashboardStore';
 import { useRouter } from 'next/navigation';
+import { DashboardData, DiscScores } from '@/types/types';
 
-interface DashboardData {
-  introducao: string;
-  analisePerfilNatural: {
-    scores: DiscScores;
-    fatorAltoPrincipal: string;
-    fatorBaixoPrincipal: string;
-    tituloPerfil: string;
-    descricaoPerfil: string;
-    exposicaoCaracteristicas: Array<{
-      titulo: string;
-      texto: string;
-    }>;
-    pontosFortes: {
-      emocoes: string[];
-      relacionamentos: string[];
-      atividades: string[];
-    };
-    pontosMelhorar: {
-      emocoes: string[];
-      relacionamentos: string[];
-      atividades: string[];
-    };
-    analiseFormaGrafico: {
-      tipo: string;
-      descricao: string;
-    };
-  };
-  analisePerfilAdaptado: {
-    scores: DiscScores;
-    exigenciasDoMeio: string[];
-  };
-  estiloDeLideranca: {
-    titulo: string;
-    pontosFortes: string[];
-    comportamentosTrabalhar: string[];
-  };
-  conclusao: string;
-}
 
-interface DiscScores {
-	d: number;
-	i: number;
-	s: number;
-	c: number;
-}
 
 interface DiscProfiles {
   natural: DiscScores;
@@ -298,14 +255,14 @@ const HomePage: FC = () => {
 						<button
 						onClick={handleGenerateReport}
 						disabled={loading}
-						className="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors disabled:bg-slate-400"
+						className="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors disabled:bg-slate-400 ms-70"
 						>
 						{loading ? 'Gerando Análise...' : 'Gerar Análise'}
 						</button>
 					) : (
 						<button
 						onClick={() => router.push('/dashboard')}
-						className="bg-emerald-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-emerald-700 transition-colors"
+						className="bg-emerald-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-emerald-700 transition-colors ms-50"
 						>
 						Ir para o Dashboard
 						</button>
